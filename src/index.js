@@ -22,6 +22,8 @@
  */
 export function sampleRUM(checkpoint, data = {}) {
   const SESSION_STORAGE_KEY = 'aem-rum';
+  // eslint-disable-next-line max-len
+  const updateSessionStorage = () => window.hlx.rum.rumSessionStorage && sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(window.hlx.rum.rumSessionStorage));
   sampleRUM.baseURL = sampleRUM.baseURL || new URL(window.RUM_BASE == null ? 'https://rum.hlx.page' : window.RUM_BASE, window.location);
   sampleRUM.defer = sampleRUM.defer || [];
   const defer = (fnname) => {
@@ -35,13 +37,24 @@ export function sampleRUM(checkpoint, data = {}) {
         .filter(({ fnname }) => dfnname === fnname)
         .forEach(({ fnname, args }) => sampleRUM[fnname](...args));
     });
-  sampleRUM.always = sampleRUM.always || [];
+  sampleRUM.always = sampleRUM.always || {
+    load: () => sampleRUM('viewpage', { source: window.hlx.rum.rumSessionStorage.pages }) || true,
+    aggcwv: () => updateSessionStorage(),
+    viewpage: () => updateSessionStorage(),
+    lazy: () => {
+      const script = document.createElement('script');
+      script.src = '/scripts/enhancer.js';
+      document.head.appendChild(script);
+    },
+    cwv: () => sampleRUM.cwv(data),
+  };
   sampleRUM.always.on = (chkpnt, fn) => {
     sampleRUM.always[chkpnt] = fn;
   };
   sampleRUM.on = (chkpnt, fn) => {
     sampleRUM.cases[chkpnt] = fn;
   };
+
   defer('observe');
   defer('cwv');
   try {
@@ -61,7 +74,6 @@ export function sampleRUM(checkpoint, data = {}) {
       // eslint-disable-next-line max-len
       const rumSessionStorage = sessionStorage.getItem(SESSION_STORAGE_KEY) ? JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)) : {};
       rumSessionStorage.pages = rumSessionStorage.pages ? rumSessionStorage.pages + 1 : 1;
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(rumSessionStorage));
       // eslint-disable-next-line object-curly-newline, max-len
       window.hlx.rum = { weight, id, random, isSelected, firstReadTime, sampleRUM, sanitizeURL: urlSanitizers[window.hlx.RUM_MASK_URL || 'path'], rumSessionStorage };
     }
@@ -78,15 +90,16 @@ export function sampleRUM(checkpoint, data = {}) {
         console.debug(`ping:${checkpoint}`, pdata);
       };
       sampleRUM.cases = sampleRUM.cases || {
-        load: () => sampleRUM('pagesviewed', { source: window.hlx.rum.rumSessionStorage.pages }) || true,
+ /*       load: () => sampleRUM('viewpage', { source: window.hlx.rum.rumSessionStorage.pages }) || true,
         cwv: () => sampleRUM.cwv(data) || true,
         lazy: () => {
+          sampleRUM('viewpage', { source: window.hlx.rum.rumSessionStorage.pages }) || true,
           // use classic script to avoid CORS issues
           const script = document.createElement('script');
           script.src = new URL('.rum/@adobe/helix-rum-enhancer@^1/src/index.js', sampleRUM.baseURL).href;
           document.head.appendChild(script);
           return true;
-        },
+        }, */
       };
       sendPing(data);
       if (sampleRUM.cases[checkpoint]) {
